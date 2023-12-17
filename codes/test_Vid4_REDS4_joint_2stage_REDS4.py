@@ -73,7 +73,7 @@ def main():
     #################
     # configurations:
     #################
-    device = torch.device('cuda')
+    device = torch.device('cpu')
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     data_mode = 'REDS4_H_TwoStage'  # Vid4 | sharp_bicubic | blur_bicubic | blur | blur_comp
     # Model settings
@@ -92,7 +92,7 @@ def main():
     import models.archs.JDDB_BiGRU_Dconv_wInter as JDD_RNN_try
     model = JDD_RNN_try.JDDB_BiGRU(nf=64,\
                 groups=8, in_channel=1, output_channel=3)
-    model_path = '../experiments/J0007_JDDB_PBMNet_wgr_ncc_gt_s2h_re/models/600000_G.pth'
+    model_path = '../experiments/J0007_JDDB_PBMNet_wgr_ncc_gt_s2h/models/600000_G.pth'
     #### set up the models
     model.load_state_dict(torch.load(model_path), strict=True)
     model.eval()
@@ -101,7 +101,7 @@ def main():
     # with 2 max pooling
     from models.archs.deep_down import CNN_downsampling
     DSNet_model = CNN_downsampling(input_channels=4, kernel_size=3)
-    DSNet_path = '../experiments/J0007_JDDB_PBMNet_wgr_ncc_gt_s2h_re/models/600000_DSNet.pth'
+    DSNet_path = '../experiments/J0007_JDDB_PBMNet_wgr_ncc_gt_s2h/models/600000_DSNet.pth'
     #### set up the models
     DSNet_model.load_state_dict(torch.load(DSNet_path), strict=True)
     DSNet_model.eval()
@@ -179,8 +179,8 @@ def main():
            
             imgs_in, H_ori, W_ori, H_new, W_new = util.pad_img_2_setscale(imgs_in, need_scale)
             img_in_nmap,_,_,_,_ = util.pad_img_2_setscale(img_in_nmap, need_scale)
-            imgs_in = imgs_in.cuda()
-            img_in_nmap = img_in_nmap.cuda()
+            imgs_in = imgs_in
+            img_in_nmap = img_in_nmap
             B_num, N_num, C_num,_,_ = img_in_nmap.size()
             #### 3.3 : perform two-stage alignmnet and resconstraction
             #### Note: performe coarse alignment on LR image domain
@@ -193,8 +193,8 @@ def main():
             imgs_in_nmap_pad = np.pad(imgs_in_nmap_pad, ((0, 0), (0, 0), (0, 0), \
                 (patch_extend, patch_extend), (patch_extend, patch_extend)), \
                     'constant')
-            imgs_in_pad = torch.from_numpy(imgs_in_pad).cuda()
-            imgs_in_nmap_pad = torch.from_numpy(imgs_in_nmap_pad).cuda()
+            imgs_in_pad = torch.from_numpy(imgs_in_pad)
+            imgs_in_nmap_pad = torch.from_numpy(imgs_in_nmap_pad)
             #----> b. use PBM and output all aligned patches
             DSNet_net = DSNet_model
             all_img_in_patches, all_nmap_in_patches, patch_num, h_num, w_num = \
@@ -240,6 +240,7 @@ def main():
                 output_results = (output_results * 255.0).round()
                 output_results = output_results.astype(np.uint8)
                 cv2.imwrite(osp.join(save_subfolder, '{}_Ours.png'.format(img_name)), output_results)
+                print('Image Saved: ', osp.join(save_subfolder, '{}_Ours.png'.format(img_name))) 
                 
             otput_temp, GT = util.crop_border([otput_temp, GT], crop_border)
             crt_psnr = util.calculate_psnr(otput_temp * 255, GT * 255)
@@ -272,24 +273,46 @@ def main():
                                                                     avg_ssim_center, N_center,
                                                                     avg_psnr_border, N_border))
 
-    logger.info('################ Tidy Outputs ################')
-    for subfolder_name, psnr, psnr_center, psnr_border, ssim_center in zip(subfolder_name_l, avg_psnr_l,
-                                                                avg_psnr_center_l, avg_psnr_border_l, avg_ssim_center_l):
-        logger.info('Folder {} - Average PSNR: {:.6f} dB. '
-                    'Center PSNR: {:.6f} dB. '
-                    'Center SSIM: {:.6f}. '
-                    'Border PSNR: {:.6f} dB.'.format(subfolder_name, psnr, psnr_center, ssim_center,
-                                                        psnr_border))
-    logger.info('################ Final Results ################')
-    logger.info('Padding mode: {}'.format(padding))
-    logger.info('Model path: {}'.format(model_path))
-    logger.info('Save images: {}'.format(save_imgs))
-    logger.info('Total Average PSNR: {:.6f} dB for {} clips. '
-                'Center PSNR: {:.6f} dB, center SSIM: {:.6f}. Border PSNR: {:.6f} dB.'.format(
-                    sum(avg_psnr_l) / len(avg_psnr_l), len(subfolder_GT_l),
-                    sum(avg_psnr_center_l) / len(avg_psnr_center_l),
-                    sum(avg_ssim_center_l) / len(avg_ssim_center_l),
-                    sum(avg_psnr_border_l) / len(avg_psnr_border_l)))
+        logger.info('################ Tidy Outputs ################')
+        for subfolder_name, psnr, psnr_center, psnr_border, ssim_center in zip(subfolder_name_l, avg_psnr_l,
+                                                                    avg_psnr_center_l, avg_psnr_border_l, avg_ssim_center_l):
+            logger.info('Folder {} - Average PSNR: {:.6f} dB. '
+                        'Center PSNR: {:.6f} dB. '
+                        'Center SSIM: {:.6f}. '
+                        'Border PSNR: {:.6f} dB.'.format(subfolder_name, psnr, psnr_center, ssim_center,
+                                                            psnr_border))
+        logger.info('################ Final Results ################')
+        logger.info('Padding mode: {}'.format(padding))
+        logger.info('Model path: {}'.format(model_path))
+        logger.info('Save images: {}'.format(save_imgs))
+
+        # Check if lists are not empty to avoid division by zero
+        if avg_psnr_l:
+            total_avg_psnr = sum(avg_psnr_l) / len(avg_psnr_l)
+        else:
+            total_avg_psnr = 0
+
+        if avg_psnr_center_l:
+            total_avg_psnr_center = sum(avg_psnr_center_l) / len(avg_psnr_center_l)
+        else:
+            total_avg_psnr_center = 0
+
+        if avg_ssim_center_l:
+            total_avg_ssim_center = sum(avg_ssim_center_l) / len(avg_ssim_center_l)
+        else:
+            total_avg_ssim_center = 0
+
+        if avg_psnr_border_l:
+            total_avg_psnr_border = sum(avg_psnr_border_l) / len(avg_psnr_border_l)
+        else:
+            total_avg_psnr_border = 0
+
+        logger.info('Total Average PSNR: {:.6f} dB for {} clips. '
+                    'Center PSNR: {:.6f} dB, center SSIM: {:.6f}. Border PSNR: {:.6f} dB.'.format(
+                        total_avg_psnr, len(subfolder_GT_l),
+                        total_avg_psnr_center, total_avg_ssim_center,
+                        total_avg_psnr_border))
+
 
 
 if __name__ == '__main__':
